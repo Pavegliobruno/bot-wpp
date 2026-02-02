@@ -9,22 +9,35 @@ const config = require('./config');
 // Limpiar archivos de bloqueo de Chromium al iniciar
 function cleanupChromiumLocks() {
     const authPath = './wwebjs_auth';
-    if (fs.existsSync(authPath)) {
-        const cleanLocks = (dir) => {
-            if (!fs.existsSync(dir)) return;
-            const files = fs.readdirSync(dir);
-            for (const file of files) {
-                const filePath = path.join(dir, file);
-                const stat = fs.statSync(filePath);
-                if (stat.isDirectory()) {
-                    cleanLocks(filePath);
-                } else if (file === 'SingletonLock' || file === 'SingletonCookie' || file === 'SingletonSocket') {
-                    fs.unlinkSync(filePath);
-                    console.log(`🧹 Eliminado lock: ${filePath}`);
+    try {
+        if (fs.existsSync(authPath)) {
+            const cleanLocks = (dir) => {
+                try {
+                    if (!fs.existsSync(dir)) return;
+                    const files = fs.readdirSync(dir);
+                    for (const file of files) {
+                        try {
+                            const filePath = path.join(dir, file);
+                            if (!fs.existsSync(filePath)) continue;
+                            const stat = fs.lstatSync(filePath);
+                            if (stat.isDirectory()) {
+                                cleanLocks(filePath);
+                            } else if (file === 'SingletonLock' || file === 'SingletonCookie' || file === 'SingletonSocket') {
+                                fs.unlinkSync(filePath);
+                                console.log(`🧹 Eliminado lock: ${filePath}`);
+                            }
+                        } catch (e) {
+                            // Ignorar errores de archivos individuales
+                        }
+                    }
+                } catch (e) {
+                    // Ignorar errores de directorio
                 }
-            }
-        };
-        cleanLocks(authPath);
+            };
+            cleanLocks(authPath);
+        }
+    } catch (e) {
+        console.log('⚠️ No se pudieron limpiar locks:', e.message);
     }
 }
 const { createClient, setupReconnection } = require('./client');
