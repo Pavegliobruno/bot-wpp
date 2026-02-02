@@ -9,6 +9,7 @@ const { sleep } = require('./utils/delay');
 function createClient() {
     const puppeteerConfig = {
         headless: true,
+        protocolTimeout: 120000, // 2 minutos timeout
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -17,7 +18,15 @@ function createClient() {
             '--no-first-run',
             '--no-zygote',
             '--single-process',
-            '--disable-gpu'
+            '--disable-gpu',
+            '--disable-extensions',
+            '--disable-background-networking',
+            '--disable-default-apps',
+            '--disable-sync',
+            '--disable-translate',
+            '--metrics-recording-only',
+            '--mute-audio',
+            '--no-default-browser-check'
         ]
     };
 
@@ -30,7 +39,8 @@ function createClient() {
         authStrategy: new LocalAuth({
             dataPath: './wwebjs_auth'
         }),
-        puppeteer: puppeteerConfig
+        puppeteer: puppeteerConfig,
+        qrMaxRetries: 5
     });
 
     return client;

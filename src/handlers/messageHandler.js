@@ -61,8 +61,12 @@ async function handleMessage(client, msg) {
         }
 
     } catch (error) {
+        // Ignorar errores de timeout silenciosamente (son comunes y no críticos)
+        if (error.message.includes('timed out') || error.message.includes('timeout')) {
+            console.log('⚠️ Timeout procesando mensaje - ignorando');
+            return;
+        }
         console.error('❌ Error procesando mensaje:', error.message);
-        console.error('Stack:', error.stack);
     }
 }
 
