@@ -1,4 +1,5 @@
-const qrcode = require('qrcode-terminal');
+const qrcodeTerminal = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const http = require('http');
 
 const config = require('./config');
@@ -10,19 +11,29 @@ const { iniciarLimpiezaPeriodica } = require('./utils/spamDetector');
 // Crear cliente
 const client = createClient();
 
+// Estado del QR para servir via HTTP
+let currentQR = null;
+let isAuthenticated = false;
+
 // Configurar handlers del cliente
 function setupClientHandlers() {
     // QR code para autenticación
     client.on('qr', qr => {
+        currentQR = qr;
         console.log('📱 Escanea este QR con WhatsApp:');
         console.log('');
-        qrcode.generate(qr, { small: true });
+        qrcodeTerminal.generate(qr, { small: true });
         console.log('');
         console.log('⚠️ IMPORTANTE: Escanea este QR desde tu WhatsApp en los próximos 60 segundos');
+        console.log('');
+        console.log('🌐 Si el QR se ve roto, abre esta URL en tu navegador:');
+        console.log(`   ${process.env.RAILWAY_PUBLIC_DOMAIN ? 'https://' + process.env.RAILWAY_PUBLIC_DOMAIN : 'http://localhost:' + config.PORT}/qr`);
     });
 
     // Autenticación exitosa
     client.on('authenticated', () => {
+        isAuthenticated = true;
+        currentQR = null;
         console.log('✅ Autenticación exitosa! Sesión guardada.');
     });
 
@@ -48,12 +59,39 @@ function setupClientHandlers() {
     });
 }
 
-// Configurar servidor de healthcheck
-function setupHealthcheck() {
-    const server = http.createServer((req, res) => {
+// Configurar servidor HTTP (healthcheck + QR)
+function setupHttpServer() {
+    const server = http.createServer(async (req, res) => {
         if (req.url === '/health') {
             res.writeHead(200);
             res.end('OK');
+        } else if (req.url === '/qr') {
+            if (isAuthenticated) {
+                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.end('<html><body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>✅ Ya autenticado!</h1></body></html>');
+            } else if (currentQR) {
+                try {
+                    const qrImage = await QRCode.toDataURL(currentQR, { width: 400 });
+                    res.writeHead(200, { 'Content-Type': 'text/html' });
+                    res.end(`
+                        <html>
+                        <head><title>WhatsApp QR</title></head>
+                        <body style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;background:#111;color:#fff;">
+                            <h1>📱 Escanea con WhatsApp</h1>
+                            <img src="${qrImage}" style="border-radius:10px;"/>
+                            <p style="color:#888;">Abre WhatsApp → Configuración → Dispositivos vinculados</p>
+                            <p style="color:#666;font-size:12px;">El QR expira en 60 segundos. Recarga si es necesario.</p>
+                        </body>
+                        </html>
+                    `);
+                } catch (e) {
+                    res.writeHead(500);
+                    res.end('Error generando QR');
+                }
+            } else {
+                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.end('<html><body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>⏳ Esperando QR... Recarga en unos segundos</h1></body></html>');
+            }
         } else {
             res.writeHead(404);
             res.end('Not Found');
@@ -61,7 +99,7 @@ function setupHealthcheck() {
     });
 
     server.listen(config.PORT, () => {
-        console.log(`🏥 Healthcheck server running on port ${config.PORT}`);
+        console.log(`🏥 HTTP server running on port ${config.PORT}`);
     });
 }
 
@@ -79,8 +117,8 @@ async function main() {
     // Configurar handlers
     setupClientHandlers();
 
-    // Iniciar healthcheck
-    setupHealthcheck();
+    // Iniciar servidor HTTP
+    setupHttpServer();
 
     // Iniciar servicios de limpieza
     startCleanupServices();
