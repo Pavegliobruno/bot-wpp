@@ -1,8 +1,32 @@
 const qrcodeTerminal = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
 const config = require('./config');
+
+// Limpiar archivos de bloqueo de Chromium al iniciar
+function cleanupChromiumLocks() {
+    const authPath = './wwebjs_auth';
+    if (fs.existsSync(authPath)) {
+        const cleanLocks = (dir) => {
+            if (!fs.existsSync(dir)) return;
+            const files = fs.readdirSync(dir);
+            for (const file of files) {
+                const filePath = path.join(dir, file);
+                const stat = fs.statSync(filePath);
+                if (stat.isDirectory()) {
+                    cleanLocks(filePath);
+                } else if (file === 'SingletonLock' || file === 'SingletonCookie' || file === 'SingletonSocket') {
+                    fs.unlinkSync(filePath);
+                    console.log(`🧹 Eliminado lock: ${filePath}`);
+                }
+            }
+        };
+        cleanLocks(authPath);
+    }
+}
 const { createClient, setupReconnection } = require('./client');
 const { handleMessage } = require('./handlers/messageHandler');
 const { startCacheCleanup } = require('./utils/cache');
@@ -113,6 +137,9 @@ function startCleanupServices() {
 async function main() {
     console.log('🚀 Iniciando bot...');
     console.log(`🔒 Modo: ${config.SOLO_LOGS ? 'SOLO LOGS (seguro para testing)' : 'PRODUCCIÓN'}`);
+
+    // Limpiar locks de Chromium antes de iniciar
+    cleanupChromiumLocks();
 
     // Configurar handlers
     setupClientHandlers();
