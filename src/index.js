@@ -96,12 +96,125 @@ function setupClientHandlers() {
     });
 }
 
-// Configurar servidor HTTP (healthcheck + QR)
+// Obtener estadísticas de grupos y usuarios
+async function getGroupStats() {
+    try {
+        const chats = await client.getChats();
+        const groups = chats.filter(c => c.isGroup);
+        const me = client.info.wid._serialized;
+
+        // Filtrar grupos donde somos admin
+        const adminGroups = [];
+        const userGroupMap = new Map(); // usuario -> [grupos]
+
+        for (const group of groups) {
+            const participant = group.participants.find(p => p.id._serialized === me);
+            if (participant && participant.isAdmin) {
+                const groupInfo = {
+                    name: group.name,
+                    id: group.id._serialized,
+                    participantCount: group.participants.length,
+                    participants: group.participants.map(p => ({
+                        id: p.id._serialized,
+                        number: p.id.user,
+                        isAdmin: p.isAdmin
+                    }))
+                };
+                adminGroups.push(groupInfo);
+
+                // Mapear usuarios a grupos
+                for (const p of group.participants) {
+                    if (p.id._serialized === me) continue; // Ignorar al bot
+                    if (!userGroupMap.has(p.id._serialized)) {
+                        userGroupMap.set(p.id._serialized, []);
+                    }
+                    userGroupMap.get(p.id._serialized).push(group.name);
+                }
+            }
+        }
+
+        // Encontrar usuarios en múltiples grupos
+        const sharedUsers = [];
+        for (const [userId, groupNames] of userGroupMap.entries()) {
+            if (groupNames.length > 1) {
+                sharedUsers.push({
+                    number: userId.split('@')[0],
+                    groupCount: groupNames.length,
+                    groups: groupNames
+                });
+            }
+        }
+
+        // Ordenar por cantidad de grupos (más grupos primero)
+        sharedUsers.sort((a, b) => b.groupCount - a.groupCount);
+
+        return { adminGroups, sharedUsers, totalGroups: groups.length };
+    } catch (e) {
+        return { error: e.message };
+    }
+}
+
+// Configurar servidor HTTP (healthcheck + QR + status)
 function setupHttpServer() {
     const server = http.createServer(async (req, res) => {
         if (req.url === '/health') {
             res.writeHead(200);
             res.end('OK');
+        } else if (req.url === '/status') {
+            if (!isAuthenticated || !client.info) {
+                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.end('<html><body style="padding:20px;font-family:sans-serif;"><h1>⏳ Bot no conectado aún</h1></body></html>');
+                return;
+            }
+
+            try {
+                const stats = await getGroupStats();
+
+                if (stats.error) {
+                    res.writeHead(500, { 'Content-Type': 'text/html' });
+                    res.end(`<html><body><h1>Error: ${stats.error}</h1></body></html>`);
+                    return;
+                }
+
+                const groupsHtml = stats.adminGroups.map(g => `
+                    <div style="background:#222;padding:15px;margin:10px 0;border-radius:8px;">
+                        <h3 style="margin:0 0 10px 0;">📂 ${g.name}</h3>
+                        <p style="color:#888;margin:5px 0;">👥 ${g.participantCount} participantes</p>
+                    </div>
+                `).join('');
+
+                const sharedHtml = stats.sharedUsers.length > 0
+                    ? stats.sharedUsers.slice(0, 50).map(u => `
+                        <div style="background:#332;padding:10px;margin:5px 0;border-radius:5px;border-left:3px solid ${u.groupCount >= 3 ? '#f55' : '#fa0'};">
+                            <strong>📱 +${u.number}</strong> - en <strong>${u.groupCount}</strong> grupos
+                            <div style="color:#888;font-size:12px;margin-top:5px;">${u.groups.join(', ')}</div>
+                        </div>
+                    `).join('')
+                    : '<p style="color:#888;">No hay usuarios en múltiples grupos</p>';
+
+                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.end(`
+                    <html>
+                    <head><title>Bot Status</title></head>
+                    <body style="background:#111;color:#fff;font-family:sans-serif;padding:20px;max-width:800px;margin:0 auto;">
+                        <h1>📊 Estado del Bot Anti-Spam</h1>
+                        <p style="color:#0f0;">✅ Conectado como: ${client.info.wid.user}</p>
+
+                        <h2>📂 Grupos donde soy Admin (${stats.adminGroups.length} de ${stats.totalGroups})</h2>
+                        ${groupsHtml || '<p style="color:#888;">No eres admin en ningún grupo</p>'}
+
+                        <h2 style="margin-top:30px;">⚠️ Usuarios en Múltiples Grupos (${stats.sharedUsers.length})</h2>
+                        <p style="color:#888;font-size:12px;">Usuarios que aparecen en más de un grupo donde eres admin</p>
+                        ${sharedHtml}
+
+                        <p style="color:#666;margin-top:30px;font-size:12px;">Última actualización: ${new Date().toLocaleString()}</p>
+                    </body>
+                    </html>
+                `);
+            } catch (e) {
+                res.writeHead(500, { 'Content-Type': 'text/html' });
+                res.end(`<html><body><h1>Error: ${e.message}</h1></body></html>`);
+            }
         } else if (req.url === '/qr') {
             if (isAuthenticated) {
                 res.writeHead(200, { 'Content-Type': 'text/html' });
