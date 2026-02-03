@@ -27,6 +27,9 @@ module.exports = {
     // Modo de operación
     SOLO_LOGS: false,                  // true = solo logs, false = notifica admins
 
+    // Mensaje al detectar spam (se cita el mensaje original)
+    MENSAJE_SPAM: 'Mensaje y usuario eliminados por spam.',
+
     // Configuración de delays humanizados (en ms)
     DELAYS: {
         MIN_RESPONSE: 1000,           // Mínimo delay antes de procesar

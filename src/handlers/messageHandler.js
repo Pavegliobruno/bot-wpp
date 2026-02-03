@@ -105,9 +105,12 @@ async function manejarSpammerConfirmado(contact, chat, messageText, resultado) {
 
     if (config.SOLO_LOGS) {
         console.log(`\n🔒 MODO SOLO LOGS - NO se tomaron acciones`);
-        console.log(`✅ En modo producción se eliminarían mensajes y expulsaría de:`);
+        console.log(`✅ En modo producción se haría:`);
+        console.log(`   1. Citar mensaje con: "${config.MENSAJE_SPAM.substring(0, 50)}..."`);
+        console.log(`   2. Eliminar mensaje original`);
+        console.log(`   3. Expulsar usuario de:`);
         resultado.mensajesRecientes.forEach(m => {
-            console.log(`   - ${m.groupName}`);
+            console.log(`      - ${m.groupName}`);
         });
     } else {
         // Tomar acciones contra el spammer
@@ -115,16 +118,21 @@ async function manejarSpammerConfirmado(contact, chat, messageText, resultado) {
 
         for (const registro of resultado.mensajesRecientes) {
             try {
-                // Eliminar mensaje de spam
+                // 1. Responder/citar el mensaje de spam (queda visible como preview)
+                await actionDelay();
+                await registro.message.reply(config.MENSAJE_SPAM);
+                console.log(`   💬 Mensaje citado en: ${registro.groupName}`);
+
+                // 2. Eliminar mensaje de spam original
                 await actionDelay();
                 await registro.message.delete(true);
                 console.log(`   🗑️ Mensaje eliminado en: ${registro.groupName}`);
 
-                // Obtener el chat actualizado para expulsar
+                // 3. Obtener el chat actualizado para expulsar
                 await actionDelay();
                 const chatActual = await registro.message.getChat();
 
-                // Expulsar al usuario
+                // 4. Expulsar al usuario
                 await chatActual.removeParticipants([contact.id._serialized]);
                 console.log(`   👢 Usuario expulsado de: ${registro.groupName}`);
 
