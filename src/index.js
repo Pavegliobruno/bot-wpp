@@ -189,36 +189,40 @@ function setupHttpServer() {
 
                 const groupsHtml = stats.adminGroups.map(g => `
                     <div style="background:#222;padding:15px;margin:10px 0;border-radius:8px;">
-                        <h3 style="margin:0 0 10px 0;">📂 ${g.name}</h3>
-                        <p style="color:#888;margin:5px 0;">👥 ${g.participantCount} participantes</p>
+                        <h3 style="margin:0 0 10px 0;">${g.name}</h3>
+                        <p style="color:#888;margin:5px 0;">${g.participantCount} participantes</p>
                     </div>
                 `).join('');
 
                 const sharedHtml = stats.sharedUsers.length > 0
-                    ? stats.sharedUsers.slice(0, 50).map(u => `
-                        <div style="background:#332;padding:10px;margin:5px 0;border-radius:5px;border-left:3px solid ${u.groupCount >= 3 ? '#f55' : '#fa0'};">
-                            <strong>📱 +${u.number}</strong> - en <strong>${u.groupCount}</strong> grupos
+                    ? `<ol style="padding-left:20px;">${stats.sharedUsers.map(u => `
+                        <li style="background:#332;padding:10px;margin:5px 0;border-radius:5px;border-left:3px solid ${u.groupCount >= 3 ? '#f55' : '#fa0'};">
+                            <strong>+${u.number}</strong> - en <strong>${u.groupCount}</strong> grupos
                             <div style="color:#888;font-size:12px;margin-top:5px;">${u.groups.join(', ')}</div>
-                        </div>
-                    `).join('')
-                    : '<p style="color:#888;">No hay usuarios en múltiples grupos</p>';
+                        </li>
+                    `).join('')}</ol>`
+                    : '<p style="color:#888;">No hay usuarios en multiples grupos</p>';
 
-                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
                 res.end(`
+                    <!DOCTYPE html>
                     <html>
-                    <head><title>Bot Status</title></head>
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>Bot Status</title>
+                    </head>
                     <body style="background:#111;color:#fff;font-family:sans-serif;padding:20px;max-width:800px;margin:0 auto;">
-                        <h1>📊 Estado del Bot Anti-Spam</h1>
-                        <p style="color:#0f0;">✅ Conectado como: ${client.info.wid.user}</p>
+                        <h1>Estado del Bot Anti-Spam</h1>
+                        <p style="color:#0f0;">Conectado como: ${client.info.wid.user}</p>
 
-                        <h2>📂 Grupos donde soy Admin (${stats.adminGroups.length} de ${stats.totalGroups})</h2>
-                        ${groupsHtml || '<p style="color:#888;">No eres admin en ningún grupo</p>'}
+                        <h2>Grupos donde soy Admin (${stats.adminGroups.length} de ${stats.totalGroups})</h2>
+                        ${groupsHtml || '<p style="color:#888;">No eres admin en ningun grupo</p>'}
 
-                        <h2 style="margin-top:30px;">⚠️ Usuarios en Múltiples Grupos (${stats.sharedUsers.length})</h2>
-                        <p style="color:#888;font-size:12px;">Usuarios que aparecen en más de un grupo donde eres admin</p>
+                        <h2 style="margin-top:30px;">Usuarios en Multiples Grupos (${stats.sharedUsers.length})</h2>
+                        <p style="color:#888;font-size:12px;">Usuarios que aparecen en mas de un grupo donde eres admin</p>
                         ${sharedHtml}
 
-                        <p style="color:#666;margin-top:30px;font-size:12px;">Última actualización: ${new Date().toLocaleString()}</p>
+                        <p style="color:#666;margin-top:30px;font-size:12px;">Ultima actualizacion: ${new Date().toLocaleString()}</p>
                     </body>
                     </html>
                 `);
