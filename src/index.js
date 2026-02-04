@@ -174,7 +174,7 @@ function setupHttpServer() {
         } else if (req.url === '/status') {
             if (!isAuthenticated || !client.info) {
                 res.writeHead(200, { 'Content-Type': 'text/html' });
-                res.end('<html><body style="padding:20px;font-family:sans-serif;"><h1>⏳ Bot no conectado aún</h1></body></html>');
+                res.end('<html><body style="padding:20px;font-family:sans-serif;background:#111;color:#fff;"><h1>⏳ Bot no conectado aún</h1></body></html>');
                 return;
             }
 
@@ -187,21 +187,8 @@ function setupHttpServer() {
                     return;
                 }
 
-                const groupsHtml = stats.adminGroups.map(g => `
-                    <div style="background:#222;padding:15px;margin:10px 0;border-radius:8px;">
-                        <h3 style="margin:0 0 10px 0;">${g.name}</h3>
-                        <p style="color:#888;margin:5px 0;">${g.participantCount} participantes</p>
-                    </div>
-                `).join('');
-
-                const sharedHtml = stats.sharedUsers.length > 0
-                    ? `<ol style="padding-left:20px;">${stats.sharedUsers.map(u => `
-                        <li style="background:#332;padding:10px;margin:5px 0;border-radius:5px;border-left:3px solid ${u.groupCount >= 3 ? '#f55' : '#fa0'};">
-                            <strong>+${u.number}</strong> - en <strong>${u.groupCount}</strong> grupos
-                            <div style="color:#888;font-size:12px;margin-top:5px;">${u.groups.join(', ')}</div>
-                        </li>
-                    `).join('')}</ol>`
-                    : '<p style="color:#888;">No hay usuarios en multiples grupos</p>';
+                // Preparar datos para JavaScript
+                const groupsData = JSON.stringify(stats.adminGroups);
 
                 res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
                 res.end(`
@@ -209,20 +196,239 @@ function setupHttpServer() {
                     <html>
                     <head>
                         <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
                         <title>Bot Status</title>
+                        <style>
+                            * { box-sizing: border-box; }
+                            body {
+                                background: #111;
+                                color: #fff;
+                                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                padding: 20px;
+                                max-width: 900px;
+                                margin: 0 auto;
+                            }
+                            h1 { margin-bottom: 5px; }
+                            .status { color: #0f0; margin-bottom: 30px; }
+                            h2 { margin-top: 30px; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+                            .groups-grid {
+                                display: flex;
+                                flex-wrap: wrap;
+                                gap: 10px;
+                                margin-bottom: 20px;
+                            }
+                            .group-btn {
+                                background: #222;
+                                border: 2px solid #333;
+                                color: #fff;
+                                padding: 12px 16px;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                                font-size: 14px;
+                            }
+                            .group-btn:hover {
+                                border-color: #555;
+                                background: #2a2a2a;
+                            }
+                            .group-btn.selected {
+                                border-color: #0af;
+                                background: #0af2;
+                            }
+                            .group-btn .count {
+                                color: #888;
+                                font-size: 12px;
+                                margin-left: 5px;
+                            }
+                            .results {
+                                background: #1a1a1a;
+                                border-radius: 8px;
+                                padding: 20px;
+                                margin-top: 20px;
+                            }
+                            .results-header {
+                                color: #888;
+                                margin-bottom: 15px;
+                            }
+                            .user-item {
+                                background: #222;
+                                padding: 12px 15px;
+                                margin: 8px 0;
+                                border-radius: 6px;
+                                border-left: 3px solid #0af;
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                            }
+                            .user-number {
+                                font-weight: bold;
+                                font-size: 16px;
+                            }
+                            .user-groups {
+                                color: #888;
+                                font-size: 12px;
+                            }
+                            .no-results {
+                                color: #666;
+                                text-align: center;
+                                padding: 30px;
+                            }
+                            .hint {
+                                color: #666;
+                                font-size: 13px;
+                                margin-bottom: 15px;
+                            }
+                            .actions {
+                                margin-bottom: 15px;
+                            }
+                            .action-btn {
+                                background: #333;
+                                border: none;
+                                color: #aaa;
+                                padding: 8px 12px;
+                                border-radius: 5px;
+                                cursor: pointer;
+                                font-size: 12px;
+                                margin-right: 8px;
+                            }
+                            .action-btn:hover {
+                                background: #444;
+                                color: #fff;
+                            }
+                            .footer {
+                                color: #444;
+                                font-size: 12px;
+                                margin-top: 30px;
+                                text-align: center;
+                            }
+                        </style>
                     </head>
-                    <body style="background:#111;color:#fff;font-family:sans-serif;padding:20px;max-width:800px;margin:0 auto;">
-                        <h1>Estado del Bot Anti-Spam</h1>
-                        <p style="color:#0f0;">Conectado como: ${client.info.wid.user}</p>
+                    <body>
+                        <h1>Bot Anti-Spam</h1>
+                        <p class="status">Conectado como: ${client.info.wid.user}</p>
 
-                        <h2>Grupos donde soy Admin (${stats.adminGroups.length} de ${stats.totalGroups})</h2>
-                        ${groupsHtml || '<p style="color:#888;">No eres admin en ningun grupo</p>'}
+                        <h2>Selecciona grupos para comparar (${stats.adminGroups.length})</h2>
+                        <p class="hint">Selecciona 2 o más grupos para ver usuarios en común</p>
 
-                        <h2 style="margin-top:30px;">Usuarios en Multiples Grupos (${stats.sharedUsers.length})</h2>
-                        <p style="color:#888;font-size:12px;">Usuarios que aparecen en mas de un grupo donde eres admin</p>
-                        ${sharedHtml}
+                        <div class="actions">
+                            <button class="action-btn" onclick="selectAll()">Seleccionar todos</button>
+                            <button class="action-btn" onclick="clearAll()">Limpiar selección</button>
+                        </div>
 
-                        <p style="color:#666;margin-top:30px;font-size:12px;">Ultima actualizacion: ${new Date().toLocaleString()}</p>
+                        <div class="groups-grid" id="groupsGrid"></div>
+
+                        <div class="results" id="results">
+                            <div class="no-results">Selecciona al menos 2 grupos para comparar</div>
+                        </div>
+
+                        <p class="footer">Última actualización: ${new Date().toLocaleString()}</p>
+
+                        <script>
+                            const groups = ${groupsData};
+                            const selectedGroups = new Set();
+
+                            function renderGroups() {
+                                const grid = document.getElementById('groupsGrid');
+                                grid.innerHTML = groups.map((g, i) => \`
+                                    <button class="group-btn \${selectedGroups.has(i) ? 'selected' : ''}" onclick="toggleGroup(\${i})">
+                                        \${escapeHtml(g.name)}
+                                        <span class="count">(\${g.participantCount})</span>
+                                    </button>
+                                \`).join('');
+                            }
+
+                            function toggleGroup(index) {
+                                if (selectedGroups.has(index)) {
+                                    selectedGroups.delete(index);
+                                } else {
+                                    selectedGroups.add(index);
+                                }
+                                renderGroups();
+                                updateResults();
+                            }
+
+                            function selectAll() {
+                                groups.forEach((_, i) => selectedGroups.add(i));
+                                renderGroups();
+                                updateResults();
+                            }
+
+                            function clearAll() {
+                                selectedGroups.clear();
+                                renderGroups();
+                                updateResults();
+                            }
+
+                            function updateResults() {
+                                const resultsDiv = document.getElementById('results');
+
+                                if (selectedGroups.size < 2) {
+                                    resultsDiv.innerHTML = '<div class="no-results">Selecciona al menos 2 grupos para comparar</div>';
+                                    return;
+                                }
+
+                                // Obtener usuarios de los grupos seleccionados
+                                const selectedGroupsList = Array.from(selectedGroups).map(i => groups[i]);
+                                const groupNames = selectedGroupsList.map(g => g.name);
+
+                                // Contar en cuántos grupos seleccionados está cada usuario
+                                const userCount = new Map();
+                                const userGroups = new Map();
+
+                                for (const group of selectedGroupsList) {
+                                    for (const p of group.participants) {
+                                        if (!userCount.has(p.number)) {
+                                            userCount.set(p.number, 0);
+                                            userGroups.set(p.number, []);
+                                        }
+                                        userCount.set(p.number, userCount.get(p.number) + 1);
+                                        userGroups.get(p.number).push(group.name);
+                                    }
+                                }
+
+                                // Filtrar usuarios que están en TODOS los grupos seleccionados
+                                const sharedUsers = [];
+                                for (const [number, count] of userCount.entries()) {
+                                    if (count === selectedGroups.size) {
+                                        sharedUsers.push({
+                                            number,
+                                            groups: userGroups.get(number)
+                                        });
+                                    }
+                                }
+
+                                // Ordenar por número
+                                sharedUsers.sort((a, b) => a.number.localeCompare(b.number));
+
+                                if (sharedUsers.length === 0) {
+                                    resultsDiv.innerHTML = \`
+                                        <div class="results-header">Comparando: \${groupNames.join(' + ')}</div>
+                                        <div class="no-results">No hay usuarios en común entre todos los grupos seleccionados</div>
+                                    \`;
+                                    return;
+                                }
+
+                                resultsDiv.innerHTML = \`
+                                    <div class="results-header">
+                                        <strong>\${sharedUsers.length}</strong> usuario(s) en común entre: \${groupNames.join(' + ')}
+                                    </div>
+                                    \${sharedUsers.map(u => \`
+                                        <div class="user-item">
+                                            <span class="user-number">+\${u.number}</span>
+                                        </div>
+                                    \`).join('')}
+                                \`;
+                            }
+
+                            function escapeHtml(text) {
+                                const div = document.createElement('div');
+                                div.textContent = text;
+                                return div.innerHTML;
+                            }
+
+                            // Inicializar
+                            renderGroups();
+                        </script>
                     </body>
                     </html>
                 `);
