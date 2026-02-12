@@ -480,6 +480,33 @@ function startCleanupServices() {
     iniciarLimpiezaPeriodica();
 }
 
+// Manejo graceful de SIGTERM (Railway envía esto para detener el proceso)
+function setupGracefulShutdown() {
+    let shuttingDown = false;
+
+    const shutdown = async (signal) => {
+        if (shuttingDown) return;
+        shuttingDown = true;
+        console.log(`\n🛑 Recibida señal ${signal}, cerrando gracefully...`);
+
+        try {
+            // Destruir el cliente de WhatsApp (cierra Chromium)
+            await Promise.race([
+                client.destroy(),
+                new Promise(resolve => setTimeout(resolve, 10000)) // max 10s
+            ]);
+            console.log('✅ Cliente cerrado correctamente');
+        } catch (e) {
+            console.log('⚠️ Error cerrando cliente:', e.message);
+        }
+
+        process.exit(0);
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
 // Función principal
 async function main() {
     console.log('🚀 Iniciando bot...');
@@ -487,6 +514,9 @@ async function main() {
 
     // Limpiar locks de Chromium antes de iniciar
     cleanupChromiumLocks();
+
+    // Configurar shutdown graceful
+    setupGracefulShutdown();
 
     // Configurar handlers
     setupClientHandlers();

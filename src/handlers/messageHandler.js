@@ -118,19 +118,25 @@ async function manejarSpammerConfirmado(contact, chat, messageText, resultado) {
 
         for (const registro of resultado.mensajesRecientes) {
             try {
+                const message = registro._msg?.deref();
+                if (!message) {
+                    console.log(`   ⚠️ Mensaje ya no disponible en: ${registro.groupName}`);
+                    continue;
+                }
+
                 // 1. Responder/citar el mensaje de spam (queda visible como preview)
                 await actionDelay();
-                await registro.message.reply(config.MENSAJE_SPAM);
+                await message.reply(config.MENSAJE_SPAM);
                 console.log(`   💬 Mensaje citado en: ${registro.groupName}`);
 
                 // 2. Eliminar mensaje de spam original
                 await actionDelay();
-                await registro.message.delete(true);
+                await message.delete(true);
                 console.log(`   🗑️ Mensaje eliminado en: ${registro.groupName}`);
 
                 // 3. Obtener el chat actualizado para expulsar
                 await actionDelay();
-                const chatActual = await registro.message.getChat();
+                const chatActual = await message.getChat();
 
                 // 4. Expulsar al usuario
                 await chatActual.removeParticipants([contact.id._serialized]);

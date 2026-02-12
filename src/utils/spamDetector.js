@@ -53,13 +53,13 @@ function registrarMensajeSospechoso(userId, chatInfo, msg) {
         m => now - m.timestamp < config.TIME_WINDOW
     );
 
-    // Agregar nuevo mensaje
+    // Agregar nuevo mensaje (sin guardar el objeto msg completo para evitar memory leak)
     mensajesRecientes.push({
         groupId: chatInfo.id,
         groupName: chatInfo.name,
         timestamp: now,
         messageId: msg.id._serialized,
-        message: msg
+        _msg: new WeakRef(msg)
     });
 
     mensajesSospechosos.set(userId, mensajesRecientes);

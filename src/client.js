@@ -26,7 +26,11 @@ function createClient() {
             '--disable-translate',
             '--metrics-recording-only',
             '--mute-audio',
-            '--no-default-browser-check'
+            '--no-default-browser-check',
+            '--js-flags=--max-old-space-size=256',
+            '--disable-renderer-backgrounding',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-ipc-flooding-protection'
         ]
     };
 
